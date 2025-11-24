@@ -1,0 +1,8 @@
+<div class="main-project">
+<div class="tool-bar"><app-tool-bar [tool]="tool" (toolChange)="onToolChange($event)"></app-tool-bar></div>
+<div class="property-view"> <app-property-view [colors]="colors" 
+(colorChange)="onColorChange($event)" 
+(outlineChange)="onOutlineChange($event)" 
+(backGroundChange)=" onBackGroundChange($event)"/> </div>
+<div class="drawing-container"><app-drawing-view [tool]="tool" [colors]="colors" [outlineColor]="colors.outline" [backGroundColor]="colors.backGround" /></div>
+</div>

@@ -24,8 +24,10 @@ export class ToolBar {
     { tool: DrawTools.Mouse, icon: 'mouse' },
     { tool: DrawTools.Eraser, icon: 'auto_fix_high' },
     { tool: DrawTools.copy, icon: 'content_copy' },
-    { tool: DrawTools.exportJson, icon: 'file_upload' },
-    { tool: DrawTools.importJson, icon: 'file_download' },
+    { tool: DrawTools.exportJson, icon: 'file_download' },
+      { tool: DrawTools.XML, icon: 'file_download' },
+
+    { tool: DrawTools.importJson, icon: 'file_upload' },
     { tool: DrawTools.undo, icon: 'undo' },       
     { tool: DrawTools.redo, icon: 'redo' }, 
   ];

@@ -14,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-//@RequestMapping("/shape/")
 @RequestMapping("/shape/")
 @CrossOrigin("http://localhost:4200")
 public class ShapeController {
@@ -91,8 +90,16 @@ public class ShapeController {
 
     }
 
+    @GetMapping("/exportXml")
+    public ResponseEntity<Resource> exportXml() {
+        ByteArrayResource resource = shapeService.exportXml();
 
-    
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=shapes.xml")
+                .header(HttpHeaders.CONTENT_TYPE, "application/xml; charset=UTF-8")
+                .body(resource);
+    }
+
 
 
 

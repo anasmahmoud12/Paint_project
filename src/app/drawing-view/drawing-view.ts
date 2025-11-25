@@ -16,10 +16,9 @@ import { HttpClientModule } from '@angular/common/http';
 export class DrawingViewComponent implements AfterViewInit,OnChanges,OnInit   {
   @ViewChild('stageContainer', { static: true }) stageContainer!: ElementRef<HTMLDivElement>;
   @Input() tool!: DrawTools;
-
+  @Input() toolTrigger!: number;
   @Input() outlineColor!: string;
   @Input() backGroundColor!: string;
-
   @Input() colors!: ShapeColor;
   
  constructor(
@@ -72,102 +71,277 @@ ngOnInit () {
 
       }
     }
-if (changes['tool']) {
+
+    if (changes['toolTrigger']) {
+              this.clearSelection();
+
        if(this.tool==DrawTools.exportJson){
         this.exportJson()
-        this.tool=DrawTools.Mouse;
        }
 
-    }
-if (changes['tool']) {
        if(this.tool==DrawTools.importJson){
         this.import()
-        this.tool=DrawTools.Mouse;
        }
-
+        if(this.tool==DrawTools.XML){
+        this.exportXml()
+       }
     }
-
-
   }
+
+
 
 private async exportJson() {
-  try {
-    // Get the blob from backend
-    const blob = await this.shapeService.exportJson().toPromise();
-    
-    // Show save file picker
-    const handle = await (window as any).showSaveFilePicker({
-      suggestedName: 'shapes.json',
-      types: [{
-        description: 'JSON Files',
-        accept: { 'application/json': ['.json'] }
-      }]
-    });
-    
-    // Write the file
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    
-    console.log('File saved successfully');
-  } catch (err) {
-    // if (err.name === 'AbortError') {
-    //   console.log('User cancelled save');
-    // } else {
-    //   console.error('Export error:', err);
-    // }
-  }
+  console.log('Exporting JSON');
+  
+  this.shapeService.exportJson().subscribe({
+    next: async (blob) => {
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: 'shapes.json',
+            types: [{
+              description: 'JSON Files',
+              accept: { 'application/json': ['.json'] }
+            }]
+          });
+          
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          
+          console.log('JSON file saved successfully');
+          alert('File saved successfully!');
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            console.error('Save file error:', err);
+            this.fallbackDownload(blob, 'shapes.json');
+          }
+        }
+      } else {
+        console.log('File System Access API not supported, using fallback download');
+        this.fallbackDownload(blob, 'shapes.json');
+      }
+    },
+    error: (err) => {
+      console.error('Export JSON error:', err);
+    }
+  });
+}
+
+private fallbackDownload(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  window.URL.revokeObjectURL(url);
+  console.log('File downloaded using fallback method');
+}
+
+private async exportXml() {
+  console.log('Exporting XML...');
+  
+  this.shapeService.exportXml().subscribe({
+    next: async (blob) => {
+      // Try to use File System Access API (Chrome 86+, Edge 86+)
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: 'shapes.xml',
+            types: [{
+              description: 'XML Files',
+              accept: { 'text/xml': ['.xml'] }
+            }]
+          });
+          
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          
+          console.log('XML file saved successfully');
+          alert('File saved successfully!');
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            console.error('Save file error:', err);
+            this.fallbackDownload(blob, 'shapes.xml');
+          }
+        }
+      } else {
+        console.log('File System Access API not supported, using fallback download');
+        this.fallbackDownload(blob, 'shapes.xml');
+      }
+    },
+    error: (err) => {
+      console.error('Export XML error:', err);
+    }
+  });
 }
 
 private import() {
-  // Create file input element
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.json,application/json';
+  input.accept = '.json,.xml,application/json,text/xml'; 
   
   input.onchange = (event: any) => {
     const file = event.target.files[0];
     if (!file) return;
     
-    // Read the file
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      try {
-        const shapes = JSON.parse(e.target.result);
-        
-        if (!Array.isArray(shapes)) {
-          console.error('Invalid JSON format: expected array of shapes');
-          return;
-        }
-        
-        // FIXED: Clear only shapes, not transformer
-        const children = this.layer.children?.slice() || [];
-        children.forEach((child: any) => {
-          if (child !== this.transformer) {
-            child.destroy();
-          }
-        });
-        
-        this.layer.draw();
-        
-        // Import each shape
-        this.importShapesSequentially(shapes, 0);
-        
-      } catch (err) {
-        console.error('Failed to parse JSON:', err);
-      }
-    };
+    const fileName = file.name.toLowerCase();
     
-    reader.readAsText(file);
+    if (fileName.endsWith('.json')) {
+      this.importJson(file);
+    } else if (fileName.endsWith('.xml')) {
+      this.importXml(file);
+    } else {
+      console.error('Unsupported file type. Please select a .json or .xml file');
+      alert('Unsupported file type. Please select a .json or .xml file');
+    }
   };
   
   // Trigger file picker
   input.click();
 }
 
+private importJson(file: File) {
+  const reader = new FileReader();
+  reader.onload = (e: any) => {
+    try {
+      const shapes = JSON.parse(e.target.result);
+      
+      if (!Array.isArray(shapes)) {
+        console.error('Invalid JSON format: expected array of shapes');
+        alert('Invalid JSON format: expected array of shapes');
+        return;
+      }
+      
+      // Clear only shapes, not transformer
+      const children = this.layer.children?.slice() || [];
+      children.forEach((child: any) => {
+        if (child !== this.transformer) {
+          child.destroy();
+        }
+      });
+      
+      this.layer.draw();
+      
+      // Import each shape
+      this.importShapesSequentially(shapes, 0);
+      
+    } catch (err) {
+      console.error('Failed to parse JSON:', err);
+      alert('Failed to parse JSON file. Please check the file format.');
+    }
+  };
+  
+  reader.readAsText(file);
+}
+
+private importXml(file: File) {
+  const reader = new FileReader();
+  reader.onload = (e: any) => {
+    try {
+      const xmlText = e.target.result;
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+      
+      // Check for parsing errors
+      const parserError = xmlDoc.querySelector('parsererror');
+      if (parserError) {
+        console.error('XML parsing error:', parserError.textContent);
+        alert('Failed to parse XML file. Please check the file format.');
+        return;
+      }
+      
+      // Extract shapes from XML
+      const shapes = this.parseXmlShapes(xmlDoc);
+      
+      if (!shapes || shapes.length === 0) {
+        console.error('No shapes found in XML file');
+        alert('No shapes found in XML file');
+        return;
+      }
+      
+      // Clear only shapes, not transformer
+      const children = this.layer.children?.slice() || [];
+      children.forEach((child: any) => {
+        if (child !== this.transformer) {
+          child.destroy();
+        }
+      });
+      
+      this.layer.draw();
+      
+      // Import each shape
+      this.importShapesSequentially(shapes, 0);
+      
+    } catch (err) {
+      console.error('Failed to parse XML:', err);
+      alert('Failed to parse XML file. Please check the file format.');
+    }
+  };
+  
+  reader.readAsText(file);
+}
+
+private parseXmlShapes(xmlDoc: Document): any[] {
+  const shapes: any[] = [];
+  
+  // Try different XML structures (both <item> and <shape> tags)
+  let shapeElements = xmlDoc.querySelectorAll('item');
+  if (shapeElements.length === 0) {
+    shapeElements = xmlDoc.querySelectorAll('shape');
+  }
+  
+  console.log(`Found ${shapeElements.length} shapes in XML`);
+  
+  shapeElements.forEach((shapeEl, index) => {
+    const shape: any = {};
+    
+    // Parse all child elements as properties
+    shapeEl.childNodes.forEach((node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const element = node as Element;
+        const key = element.tagName;
+        const value = element.textContent?.trim() || '';
+        
+        // Convert value to appropriate type
+        if (key === 'points') {
+          // Parse points array: "1,2,3,4" -> [1, 2, 3, 4]
+          shape[key] = value.split(',').map(p => parseFloat(p.trim()));
+        } else if (key === 'type' || key === 'strokeColor' || key === 'fillColor') {
+          // Keep as string
+          shape[key] = value;
+        } else if (key === 'id') {
+          // Skip the old id, let backend generate new one
+          // Don't include it in the shape object
+        } else {
+          // Try to parse as number, otherwise keep as string
+          const numValue = parseFloat(value);
+          shape[key] = isNaN(numValue) ? value : numValue;
+        }
+      }
+    });
+    
+    console.log(`Parsed shape ${index + 1}:`, shape);
+    
+    if (shape.type) {
+      shapes.push(shape);
+    } else {
+      console.warn(`Shape ${index + 1} missing type, skipping`);
+    }
+  });
+  
+  return shapes;
+}
+
 private importShapesSequentially(shapes: any[], index: number) {
   if (index >= shapes.length) {
     console.log('All shapes imported successfully');
+    alert(`Successfully imported ${shapes.length} shape(s)`);
     return;
   }
   
@@ -208,6 +382,13 @@ private importShapesSequentially(shapes: any[], index: number) {
     }
   });
 }
+
+
+
+
+
+
+
 
 
 
@@ -450,7 +631,6 @@ case DrawTools.square:
       shape.y((y1 + y2) / 2);
     }
 
-    // FIXED: Triangle resize logic
     if (shape instanceof Konva.Line && this.tool === DrawTools.Triangle) {
       const width = x2 - x1;
       const height = y2 - y1;
@@ -518,75 +698,156 @@ case DrawTools.square:
     this.selectShape(shape);
   }
 
-  private selectShape(shape: Konva.Shape) {
+
+private selectShape(shape: Konva.Shape) {
    
   this.selectedShape = shape;
   shape.draggable(true);
+  
+  // Check if shape should maintain aspect ratio (Circle or Square)
+  const shapeType = shape.getAttr('shapeType');
+  const shouldKeepRatio = shapeType === 'Circle' || shapeType === 'Square';
+  
+  // Configure transformer based on shape type
   this.transformer.nodes([shape]);
+  
+  // Enable aspect ratio locking for circles and squares
+  if (shouldKeepRatio) {
+    this.transformer.keepRatio(true);
+    this.transformer.enabledAnchors([
+      'top-left',
+      'top-right',
+      'bottom-left',
+      'bottom-right'
+    ]);
+  } else {
+    this.transformer.keepRatio(false);
+    this.transformer.enabledAnchors([
+      'top-left',
+      'top-center',
+      'top-right',
+      'middle-left',
+      'middle-right',
+      'bottom-left',
+      'bottom-center',
+      'bottom-right'
+    ]);
+  }
+  
   this.layer.draw();
 
   shape.off('dragend');
   shape.off('transformend');
 
   shape.on('dragend', () => {
-  const id = shape.getAttr("id2");
-  if (!id) return console.error("Shape missing ID!");
+    const id = shape.getAttr("id2");
+    if (!id) return console.error("Shape missing ID!");
 
-  // FIXED: For Line/Triangle, apply position offset to points
-  if (shape instanceof Konva.Line) {
-    const points = shape.points();
-    const offsetX = shape.x();
-    const offsetY = shape.y();
-    
-    // Convert relative points to absolute coordinates
-    const absolutePoints = points.map((coord, index) => {
-      return index % 2 === 0 ? coord + offsetX : coord + offsetY;
+    // For Line/Triangle, apply position offset to points
+    if (shape instanceof Konva.Line) {
+      const points = shape.points();
+      const offsetX = shape.x();
+      const offsetY = shape.y();
+      
+      // Convert relative points to absolute coordinates
+      const absolutePoints = points.map((coord, index) => {
+        return index % 2 === 0 ? coord + offsetX : coord + offsetY;
+      });
+      
+      // Update the shape with absolute points and reset position
+      shape.setAttrs({
+        points: absolutePoints,
+        x: 0,
+        y: 0
+      });
+    }
+
+    const dto = this.makeDto.fromKonva(shape);
+    dto.id = id;
+
+    console.log("drag dto:", dto);
+
+    this.shapeService.resizeAndMove(dto).subscribe({
+      next: (res) => console.log("Move update:", res),
+      error: (err) => console.error("Move error:", err),
     });
-    
-    // Update the shape with absolute points and reset position
-    shape.setAttrs({
-      points: absolutePoints,
-      x: 0,
-      y: 0
-    });
-  }
-
-  const dto = this.makeDto.fromKonva(shape);
-  dto.id = id;
-
-  console.log("drag dto:", dto);
-
-  this.shapeService.resizeAndMove(dto).subscribe({
-    next: (res) => console.log("Move update:", res),
-    error: (err) => console.error("Move error:", err),
   });
-});
 
   shape.on('transformend', () => {
-    // FIXED: Proper handling for Line/Triangle transforms
+    const shapeType = shape.getAttr('shapeType');
+    
     if (shape instanceof Konva.Line) {
+      // Handle Line/Triangle transforms
       const points = shape.points();
       const scaleX = shape.scaleX();
       const scaleY = shape.scaleY();
+      const offsetX = shape.x();
+      const offsetY = shape.y();
+      const rotation = shape.rotation();
       
-      // Scale the points directly
-      const scaledPoints = points.map((coord, index) => {
-        return index % 2 === 0 ? coord * scaleX : coord * scaleY;
+      // FIXED: Apply both scale AND position offset to points
+      const transformedPoints = points.map((coord, index) => {
+        const scaled = index % 2 === 0 ? coord * scaleX : coord * scaleY;
+        const offset = index % 2 === 0 ? offsetX : offsetY;
+        return scaled + offset;
       });
       
+      // Reset all transforms to identity
       shape.setAttrs({
-        points: scaledPoints,
+        points: transformedPoints,
+        x: 0,
+        y: 0,
         scaleX: 1,
-        scaleY: 1
+        scaleY: 1,
+        rotation: 0  // Reset rotation as it's applied to points
       });
-    } else {
-      // For Rect, Ellipse, etc.
-      shape.setAttrs({
-        width: shape.width() * shape.scaleX(),
-        height: shape.height() * shape.scaleY(),
-        scaleX: 1,
-        scaleY: 1
-      });
+      
+    } else if (shape instanceof Konva.Ellipse) {
+      // Handle Ellipse/Circle transforms
+      const scaleX = shape.scaleX();
+      const scaleY = shape.scaleY();
+      
+      if (shapeType === 'Circle') {
+        // For circles, use the average scale to maintain perfect circle
+        const avgScale = (scaleX + scaleY) / 2;
+        shape.setAttrs({
+          radiusX: shape.radiusX() * avgScale,
+          radiusY: shape.radiusY() * avgScale,
+          scaleX: 1,
+          scaleY: 1
+        });
+      } else {
+        // For ellipses, scale normally
+        shape.setAttrs({
+          radiusX: shape.radiusX() * scaleX,
+          radiusY: shape.radiusY() * scaleY,
+          scaleX: 1,
+          scaleY: 1
+        });
+      }
+    } else if (shape instanceof Konva.Rect) {
+      // Handle Rect/Square transforms
+      const scaleX = shape.scaleX();
+      const scaleY = shape.scaleY();
+      
+      if (shapeType === 'Square') {
+        // For squares, use the larger scale to maintain perfect square
+        const newSize = Math.max(shape.width() * scaleX, shape.height() * scaleY);
+        shape.setAttrs({
+          width: newSize,
+          height: newSize,
+          scaleX: 1,
+          scaleY: 1
+        });
+      } else {
+        // For rectangles, scale normally
+        shape.setAttrs({
+          width: shape.width() * scaleX,
+          height: shape.height() * scaleY,
+          scaleX: 1,
+          scaleY: 1
+        });
+      }
     }
 
     const id = shape.getAttr("id2");
@@ -604,7 +865,7 @@ case DrawTools.square:
 
     this.layer.draw();
   });
-  }
+}
 
   private clearSelection() {
     if (!this.selectedShape) return;
@@ -666,7 +927,6 @@ case DrawTools.square:
     let shape = res.shape;
 console.log( 'shape you want ',shape)
 
-    console.log('Applying command:', operationType, 'for shape:', shape);
 
     if (operationType === 'nothing to undo' || operationType === 'nothing to redo') {
       console.log(operationType);
@@ -677,13 +937,11 @@ console.log( 'shape you want ',shape)
       const existingShape = this.layer.children!.find((node: any) => node.attrs?.id2 === shape.id);
       
       if (existingShape) {
-        console.log('Updating existing shape:', shape.id);
+        console.log('updating existing shape:', shape.id);
         
         const updateAttrs: any = {};
 
-        // FIXED: Handle both x/y and centerX/centerY for all shapes first
         if (existingShape instanceof Konva.Ellipse) {
-          // For Ellipse/Circle, prioritize centerX/centerY over x/y
           if (shape.centerX !== undefined) updateAttrs.x = shape.centerX;
           else if (shape.x !== undefined) updateAttrs.x = shape.x;
           
@@ -697,7 +955,6 @@ console.log( 'shape you want ',shape)
             updateAttrs.radiusY = shape.radius;
           }
         } else {
-          // For other shapes, use x/y normally
           if (shape.x !== undefined) updateAttrs.x = shape.x;
           if (shape.y !== undefined) updateAttrs.y = shape.y;
         }
@@ -714,19 +971,18 @@ console.log( 'shape you want ',shape)
           if (shape.points !== undefined) updateAttrs.points = shape.points;
         }
 
-        console.log('Update attributes:', updateAttrs);
         existingShape.setAttrs(updateAttrs);
       } else {
         console.warn('Shape not found for update, ID:', shape.id);
       }
       this.layer.draw();
     } else if (operationType === 'create') {
-      console.log('Creating new shape:', shape.id);
+      console.log('creating new shape:', shape.id);
       
       const existingShape = this.layer.children!.find((node: any) => node.attrs?.id2 === shape.id);
       
       if (existingShape) {
-        console.log('Shape already exists, skipping create:', shape.id);
+        console.log('shape already exists, skipping create:', shape.id);
         return;
       }
       
@@ -878,40 +1134,6 @@ this.shapeService.copy(dto).subscribe({
   });
 }
 
-importFromFile(event: any) {
-    const file = event.target.files[0];
-    if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      const json = e.target.result;
-      const nodes = JSON.parse(json);
-
-      this.layer.destroyChildren();
-
-      nodes.forEach((shapeData: any) => {
-      let shape;
-        switch(shapeData.type) {
-          case 'Rect':
-            shape = new Konva.Rect(shapeData);
-            
-            break;
-          case 'Circle':
-            shape = new Konva.Circle(shapeData);
-            break;
-          case 'Line':
-            shape = new Konva.Line(shapeData);
-            break;
-        }
-        if(shape){
-        this.layer.add(shape);
-        }
-      });
-
-      this.layer.draw();
-    };
-
-    reader.readAsText(file);
-  }
 
 }

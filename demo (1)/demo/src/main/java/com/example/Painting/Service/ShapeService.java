@@ -10,16 +10,21 @@ import com.example.Painting.Factory.FactoryOfShapes;
 import com.example.Painting.Repository.CommandRepository;
 import com.example.Painting.Repository.ShapeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Stack;
 
 @Service
 public class ShapeService {
    static public Long counter=0L;
+static  public Stack<Command> undoCommands=new Stack<>();
+    static  public Stack<Command> redoCommands=new Stack<>();
+
 
 
     @Autowired
@@ -48,7 +53,8 @@ shape_created.setId(counter);
 
         }catch (Exception e){ throw  new RuntimeException("can not mapper");}
 
-        commandRepository.save(command);
+//        commandRepository.save(command);
+        undoCommands.push(command);
         return shape_created;
     }
 
@@ -66,7 +72,8 @@ shape_created.setId(counter);
                              newState(objectMapper.writeValueAsString(newState)).undo(false).build();
 
          }catch (Exception e){ throw  new RuntimeException("can not mapper");}
-        commandRepository.save(command);
+//        commandRepository.save(command);
+        undoCommands.push(command);
 
 return  newState;
 
@@ -87,7 +94,8 @@ return  newState;
                             newState(objectMapper.writeValueAsString(newState)).undo(false).build();
 
         }catch (Exception e){ throw  new RuntimeException("can not mapper");}
-        commandRepository.save(command);
+//        commandRepository.save(command);
+        undoCommands.push(command);
 
         return  newState;
 
@@ -107,7 +115,8 @@ return  newState;
                             newState(objectMapper.writeValueAsString(newState)).undo(false).build();
 
         }catch (Exception e){ throw  new RuntimeException("can not mapper");}
-        commandRepository.save(command);
+//        commandRepository.save(command);
+        undoCommands.push(command);
 
         return  newState;
 
@@ -127,7 +136,8 @@ return  newState;
                             newState(objectMapper.writeValueAsString(newState)).undo(false).build();
 
         }catch (Exception e){ throw  new RuntimeException("can not mapper");}
-        commandRepository.save(command);
+//        commandRepository.save(command);
+        undoCommands.push(command);
 
         return  newState;
 
@@ -194,7 +204,9 @@ newState =shape;
 
         }catch (Exception e){ throw  new RuntimeException("can not mapper");}
 
-commandRepository.save(command);
+//commandRepository.save(command);
+        undoCommands.push(command);
+
         shapeRepository.save(newState);
 
         return newState;
@@ -225,7 +237,8 @@ Command command;
                             newState(objectMapper.writeValueAsString(clonedShape)).undo(false).build();
 
         }catch (Exception e){ throw  new RuntimeException("can not mapper");}
-        commandRepository.save(command);
+//        commandRepository.save(command);
+        undoCommands.push(command);
 
         return clonedShape;
 
@@ -235,10 +248,12 @@ Command command;
         this.counter=0L;
         shapeRepository.deleteAll();
         commandRepository.deleteAll();
+        undoCommands.clear();;
+        redoCommands.clear();
     }
 
 public  void delete(Long id){
-        --counter;
+//        --counter;
     Command command;
     Shape oldstate=shapeRepository.findById(id).orElse(null);
 
@@ -250,7 +265,8 @@ public  void delete(Long id){
 
     }catch (Exception e){ throw  new RuntimeException("can not mapper");}
 
-    commandRepository.save(command);
+//    commandRepository.save(command);
+    undoCommands.push(command);
         shapeRepository.deleteById(id);
 }
 
@@ -280,12 +296,25 @@ public ByteArrayResource exportJson() {
         json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(shapes);
 
     } catch (Exception e) {
-        throw new RuntimeException("no ");
+        throw new RuntimeException("not can convert to jsont not  make the file  ");
     }
     ByteArrayResource resource=new ByteArrayResource(json.getBytes());
     return resource;
 }
 
+
+    public ByteArrayResource exportXml() {
+        List<Shape> shapes = shapeRepository.findAll();
+        XmlMapper xmlMapper=new XmlMapper();
+        String xml;
+        try {
+            xml = xmlMapper.writerWithDefaultPrettyPrinter().writeValueAsString(shapes);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to convert to XML");
+        }
+
+        return new ByteArrayResource(xml.getBytes());
+    }
 
 
 

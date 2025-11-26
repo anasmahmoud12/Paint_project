@@ -28,8 +28,8 @@ export class ToolBar {
       { tool: DrawTools.XML, icon: 'file_download' },
 
     { tool: DrawTools.importJson, icon: 'file_upload' },
-    { tool: DrawTools.undo, icon: 'undo' },       
-    { tool: DrawTools.redo, icon: 'redo' }, 
+          
+    
   ];
 
   shapeTools = [

@@ -12,11 +12,12 @@ undo="undo",
 redo="redo",
 exportJson="esxportJson",
 exportXml="esxportJson",
-importJson="importJson"
-
+importJson="importJson",
+XML="exportXML"
 }
 
 export interface ShapeColor {
   outline : string;
   backGround : string;
+
 }

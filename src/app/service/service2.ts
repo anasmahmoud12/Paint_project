@@ -101,12 +101,16 @@ delete(shapeId: number): Observable<any> {
     return this.http.get(`${this.baseUrl}/clear`)
   }
 
-  // Export as JSON file
+
+ 
   exportJson(): Observable<Blob> {
-    return this.http.get(`${this.baseUrl}/exportJson`, {
-      responseType: 'blob'
-    });
+    return this.http.get(this.baseUrl + '/exportJson', { responseType: 'blob' });
   }
+
+  exportXml(): Observable<Blob> {
+    return this.http.get(this.baseUrl + '/exportXml', { responseType: 'blob' });
+  }
+
 }
 
 
